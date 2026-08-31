@@ -1,17 +1,32 @@
 # File Sorting
 
-A single-file Python CLI tool that **sorts your files into category folders**:
-it scans a source directory (including all subfolders), copies every file into
-one of five folders — `images`, `documents`, `videos`, `apps`, `other` — inside
-a destination directory, and renames each copy with an **mtime-based date
-prefix** (when the file was last modified).
+A small Python command-line tool that organizes files safely: it copies each
+file to its category, verifies the copy's size, then deletes the original.
 
-Your originals are **never moved or deleted** — the tool only copies. Run it,
-watch it work, and get a short summary at the end.
+```
+Source folder  ->  copy and verify  ->  organized destination
+Downloads      ->  images / documents ->  original removed only on success
+                    videos / apps / other
+```
+
+## Highlights
+
+- Copies files with `shutil.copy2`, verifies the destination size, then removes
+  only the successfully copied original.
+- Scans source subfolders and creates every category folder up front.
+- Preserves modification times and prefixes each copy with that date.
+- Keeps duplicate output names by adding `-1`, `-2`, and so on when necessary.
+- Automatically excludes the destination folders when they are inside the source,
+  preventing organized copies from being processed again.
+- Shows progress, category totals, removed originals, total size, elapsed time,
+  and non-fatal errors.
+- Uses only the Python standard library.
 
 ## Requirements
 
-- **Python 3** (standard library only, no dependencies to install)
+- Python 3
+
+No installation or additional packages are needed.
 
 ## Quick start
 
@@ -19,77 +34,89 @@ watch it work, and get a short summary at the end.
 python sort_my_files.py
 ```
 
-## How to use it
-
-The tool asks for two directories, then does everything automatically:
+Enter the source and destination folders when prompted. Press Enter at either
+prompt to use the current folder.
 
 ```
-Source directory (Enter = current folder): /home/user/Downloads
-Destination directory (Enter = current folder): /home/user/Organized
+Source directory (Enter = current folder): C:\Users\you\Downloads
+Destination directory (Enter = current folder): C:\Users\you\Organized
 ```
 
-- **Source**: where your messy files are (subfolders are scanned too)
-- **Destination**: where the category folders will be created / filled
+You can also drag a folder onto many terminals to paste its path.
 
-Press **Enter** with an empty answer to use the current folder.
+## What happens
 
-You can **drag & drop a folder onto the terminal** to paste its path.
+1. The five category folders are created in the destination, including empty ones.
+2. Files in the source and its subfolders are collected.
+3. Destination folders are skipped if they sit inside the source folder.
+4. Each file is copied to its category with a modification-date prefix.
+5. The destination size is checked against the source size.
+6. Only after that check succeeds is the original file deleted.
+7. A summary reports copied files, removed originals, sizes, errors, and elapsed time.
+
+Example output filename:
+
+```
+2026-08-31T12-47-05.123456-photo.jpg
+2026-08-31T12-47-05.123456-photo-1.jpg
+```
+
+The second form is used only when the first name already exists, so no output
+file is silently overwritten.
+
+## Categories
+
+| Extensions | Destination folder |
+|---|---|
+| `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` | `images` |
+| `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt` | `documents` |
+| `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv`, `.webm` | `videos` |
+| `.exe`, `.msi` | `apps` |
+| Anything else | `other` |
 
 ## Progress display
 
-While sorting, the tool shows progress on a **single line** so the terminal
-doesn't fill up:
+In an interactive terminal, progress starts collapsed:
 
 ```
-Progress: 137/500 files ...
+Progress: [########----------------------] 137/500 (27%) | 136 copied | 1 error
 ```
 
-During the run you can toggle the display at any time:
+- Press `e` to expand to one line per file.
+- Press `c` to return to the compact progress line.
 
-- press **e** to **expand** — one line per file (`Copying: photo.jpg -> images/ ...`)
-- press **c** to **collapse** — back to the single progress line
+The ASCII bar adapts to the terminal width. On narrow terminals it keeps the
+file count and percentage while omitting the extra counters. The keyboard
+controls work on Windows, Linux, and WSL. If input or output is piped, the
+script prints the detailed lines instead.
 
-(Collapse/expand keys work on Linux and WSL; when output is piped, the tool
-always shows the full per-file lines.)
-
-## What it does
-
-1. Creates the five category folders in the destination (even if a category ends up empty).
-2. Scans the source and reports how many files it found.
-3. Copies each file into its category folder, showing progress as it goes.
-4. Renames the copy to `date-prefixed-filename` (e.g. `2026-08-31T12-47-05.123456-photo.jpg`) so files are naturally ordered by modification time. The date includes microseconds, so same-named files from different subfolders still get unique names.
-
-### Categories
-
-| Extension | Folder |
-|-----------|--------|
-| `.jpg`, `.png` | `images` |
-| `.pdf`, `.docx` | `documents` |
-| `.mp4`, `.avi`, `.mkv` | `videos` |
-| `.exe` | `apps` |
-| anything else | `other` |
-
-## Example run (expanded view)
+## Example run
 
 ```
+Sorting C:\Users\you\Downloads -> C:\Users\you\Organized ...
+Original files are deleted after a verified copy
 Found 4 file(s)
-Progress: collapsed - press 'e' to expand, 'c' to collapse
-Copying: photo.jpg -> images/ ...
-Copying: song.mp4 -> videos/ ...
-Copying: report.pdf -> documents/ ...
-Copying: notes.txt -> other/ ...
-  Error moving '/home/user/Downloads/broken.pdf': [Errno 2] No such file
+View: compact | e: details, c: compact
+Progress: [##############################] 4/4 (100%) | 4 copied | 0 errors
 
-Done: 3 file(s), 12.5 MB
+Done: 4 file(s), 12.5 MB
+Removed: 4 original file(s)
   documents: 1 file(s), 0.2 MB
   images: 1 file(s), 3.1 MB
-  videos: 1 file(s), 9.2 MB
+  other: 1 file(s), 0.1 MB
+  videos: 1 file(s), 9.1 MB
 Time: 0.3 s
 File organization completed!
 ```
 
-## Notes
+## Safety notes
 
-- Failed files don't stop the run: each error is printed (indented, two spaces) and the tool continues with the next file.
-- Running the tool again on the same destination **re-copies and re-prefixes** the already-organized files (the destination folder is not excluded from the scan). Point it at a fresh destination, or delete the organized folders first.
-- Files with the same name from different source subfolders end up in the same category folder; since the date prefix includes microseconds, they are kept separate only if their modification times differ.
+- An original is deleted only after `copy2` succeeds and the copy has the same
+  size as the original.
+- If copying, verification, or deletion fails, that file is reported as an error
+  and the original is kept. The rest of the run continues.
+- If the source folder does not exist, or the destination is a file instead of a
+  folder, the program explains the problem before copying anything.
+- If source and destination are the same folder, the generated category folders
+  are excluded from scanning. Files elsewhere in that folder can still be copied
+  into those categories.
